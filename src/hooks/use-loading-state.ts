@@ -12,7 +12,12 @@
 
 import { useState, useCallback } from 'react';
 import { useToastNotifications } from '@/hooks/use-toast-notifications';
-import { AppError, ErrorType, handleAsyncOperation } from '@/lib/utils/error-patterns';
+import { 
+  AppError, 
+  ErrorType, 
+  handleAsyncOperation,
+  type ErrorHandlerConfig 
+} from '@/lib/utils/error-patterns';
 
 interface LoadingStateConfig {
   showToast?: boolean;

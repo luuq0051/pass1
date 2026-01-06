@@ -87,18 +87,7 @@ export class AppError extends Error {
 }
 
 /**
- * Error handler wrapper cho async operations
- */
-export interface ErrorHandlerConfig {
-  showToast?: boolean;
-  logError?: boolean;
-  fallbackValue?: any;
-  retryCount?: number;
-  retryDelay?: number;
-}
-
-/**
- * Standardized async error handler
+ * Standardized async error handler với enhanced retry logic
  */
 export async function handleAsyncOperation<T>(
   operation: () => Promise<T>,
@@ -109,37 +98,64 @@ export async function handleAsyncOperation<T>(
     logError = true,
     fallbackValue = null,
     retryCount = 0,
-    retryDelay = 1000
+    retryDelay = 1000,
+    severity = ErrorSeverity.MEDIUM,
+    context = {}
   } = config;
 
   let lastError: Error | null = null;
   
   for (let attempt = 0; attempt <= retryCount; attempt++) {
     try {
-      return await operation();
+      const result = await operation();
+      
+      // Log successful retry nếu có
+      if (attempt > 0 && logError) {
+        logger.info(`Operation succeeded after ${attempt} retries`, { 
+          context,
+          attempts: attempt + 1 
+        });
+      }
+      
+      return result;
     } catch (error) {
       lastError = error as Error;
       
+      const appError = lastError instanceof AppError ? lastError : 
+        new AppError(
+          lastError.message, 
+          ErrorType.UNKNOWN, 
+          undefined, 
+          { ...context, attempt: attempt + 1 },
+          severity
+        );
+      
       if (logError) {
-        logger.error(`Operation failed (attempt ${attempt + 1}/${retryCount + 1})`, lastError);
+        logger.error(
+          `Operation failed (attempt ${attempt + 1}/${retryCount + 1})`, 
+          appError,
+          appError.context
+        );
       }
       
-      // Retry logic
-      if (attempt < retryCount) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      // Retry logic với exponential backoff
+      if (attempt < retryCount && appError.recoveryStrategy === ErrorRecoveryStrategy.RETRY) {
+        const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
+      
+      // Store last error for final handling
+      lastError = appError;
+      break;
     }
   }
   
   // All attempts failed
   if (lastError) {
     if (showToast) {
-      const appError = lastError instanceof AppError ? lastError : 
-        new AppError(lastError.message, ErrorType.UNKNOWN);
-      
       // Toast sẽ được handle bởi global error handler
-      throw appError;
+      throw lastError;
     }
   }
   
@@ -147,11 +163,20 @@ export async function handleAsyncOperation<T>(
 }
 
 /**
- * Error boundary helper
+ * Error boundary helper với recovery strategies
  */
 export function createErrorBoundaryFallback(componentName: string) {
-  return function ErrorFallback({ error }: { error: Error }) {
-    logger.error(`Error boundary caught error in ${componentName}`, error);
+  return function ErrorFallback({ 
+    error, 
+    resetErrorBoundary 
+  }: { 
+    error: Error;
+    resetErrorBoundary?: () => void;
+  }) {
+    const appError = error instanceof AppError ? error : 
+      new AppError(error.message, ErrorType.UNKNOWN, undefined, { component: componentName });
+    
+    logger.error(`Error boundary caught error in ${componentName}`, appError);
     
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
@@ -159,62 +184,70 @@ export function createErrorBoundaryFallback(componentName: string) {
           Có lỗi xảy ra
         </h2>
         <p className="text-gray-600 mb-4">
-          {error instanceof AppError ? error.userMessage : 'Vui lòng tải lại trang và thử lại.'}
+          {appError.userMessage}
         </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Tải lại trang
-        </button>
+        <div className="flex gap-2">
+          {resetErrorBoundary && (
+            <button
+              onClick={resetErrorBoundary}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Thử lại
+            </button>
+          )}
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+          >
+            Tải lại trang
+          </button>
+        </div>
       </div>
     );
   };
 }
 
 /**
- * Validation error helper
+ * Factory functions cho common errors
  */
-export function createValidationError(
-  field: string,
-  value: any,
-  rule: string
-): AppError {
-  return new AppError(
-    `Validation failed for field '${field}' with rule '${rule}'`,
-    ErrorType.VALIDATION,
-    `Trường ${field} không hợp lệ`,
-    { field, value, rule }
-  );
-}
+export const ErrorFactory = {
+  validation: (field: string, value: any, rule: string): AppError => 
+    new AppError(
+      `Validation failed for field '${field}' with rule '${rule}'`,
+      ErrorType.VALIDATION,
+      `Trường ${field} không hợp lệ`,
+      { field, value, rule },
+      ErrorSeverity.LOW
+    ),
 
-/**
- * Database error helper
- */
-export function createDatabaseError(
-  operation: string,
-  details?: string
-): AppError {
-  return new AppError(
-    `Database operation '${operation}' failed: ${details}`,
-    ErrorType.DATABASE,
-    'Có lỗi khi truy cập dữ liệu',
-    { operation, details }
-  );
-}
+  database: (operation: string, details?: string): AppError => 
+    new AppError(
+      `Database operation '${operation}' failed: ${details}`,
+      ErrorType.DATABASE,
+      'Có lỗi khi truy cập dữ liệu',
+      { operation, details },
+      ErrorSeverity.HIGH
+    ),
 
-/**
- * Network error helper
- */
-export function createNetworkError(
-  url: string,
-  status?: number,
-  statusText?: string
-): AppError {
-  return new AppError(
-    `Network request to '${url}' failed: ${status} ${statusText}`,
-    ErrorType.NETWORK,
-    'Có lỗi kết nối mạng',
-    { url, status, statusText }
-  );
-}
+  network: (url: string, status?: number, statusText?: string): AppError => 
+    new AppError(
+      `Network request to '${url}' failed: ${status} ${statusText}`,
+      ErrorType.NETWORK,
+      'Có lỗi kết nối mạng',
+      { url, status, statusText },
+      ErrorSeverity.MEDIUM
+    ),
+
+  permission: (action: string, resource?: string): AppError =>
+    new AppError(
+      `Permission denied for action '${action}' on resource '${resource}'`,
+      ErrorType.PERMISSION,
+      'Bạn không có quyền thực hiện thao tác này',
+      { action, resource },
+      ErrorSeverity.MEDIUM
+    )
+};
+
+// Re-export types for convenience
+export { ErrorType, ErrorSeverity, ErrorRecoveryStrategy } from '@/lib/types/error-types';
+export type { ErrorHandlerConfig, ErrorContext } from '@/lib/types/error-types';

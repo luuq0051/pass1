@@ -1,5 +1,5 @@
 /**
- * usePasswords Hook - Refactored với Service Layer
+ * usePasswords Hook - Refactored với Service Layer và Performance Monitoring
  * Quản lý passwords với clean architecture pattern
  * 
  * Features:
@@ -8,6 +8,7 @@
  * - Loading states management
  * - Toast notifications
  * - Type safety
+ * - Performance monitoring
  */
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
@@ -18,6 +19,7 @@ import { ServiceFactory } from '@/lib/services/service-factory';
 import { SUCCESS_MESSAGES } from '@/lib/constants/app-constants';
 import { logger } from '@/lib/utils/logger';
 import { configurationService } from '@/lib/config';
+import { measureAsync, logMemoryUsage } from '@/lib/utils/performance-monitor';
 
 /**
  * Hook configuration
@@ -82,122 +84,148 @@ export const usePasswords = (config: UsePasswordsConfig = {}): UsePasswordsRetur
   }, [autoInitialize]);
 
   /**
-   * Load passwords từ service với enhanced error handling
+   * Load passwords từ service với enhanced error handling và performance monitoring
    */
   const refreshPasswords = useCallback(async () => {
-    const endTimer = logger.time('refreshPasswords');
-    
-    const result = await handleAsyncError(
-      () => executeOperation(() => passwordService.getAllPasswords()),
-      { showToast: false } // Không hiển thị toast cho refresh
+    const result = await measureAsync(
+      'usePasswords.refreshPasswords',
+      async () => {
+        return await handleAsyncError(
+          () => executeOperation(() => passwordService.getAllPasswords()),
+          { showToast: false } // Không hiển thị toast cho refresh
+        );
+      },
+      { passwordCount: passwords.length }
     );
     
     if (result) {
       setPasswords(result);
       logger.info('Passwords refreshed successfully', { count: result.length });
+      
+      // Log memory usage sau khi load data
+      logMemoryUsage('after password refresh');
     }
-    
-    endTimer();
-  }, [passwordService, executeOperation, handleAsyncError]);
+  }, [passwordService, executeOperation, handleAsyncError, passwords.length]);
 
   /**
-   * Tìm kiếm passwords với logging
+   * Tìm kiếm passwords với logging và performance monitoring
    */
   const searchPasswords = useCallback(async (query?: string) => {
-    const endTimer = logger.time('searchPasswords');
-    logger.debug('Searching passwords', { query });
-    
-    const result = await handleAsyncError(
-      () => executeOperation(() => passwordService.searchPasswords(query || '')),
-      { showToast: false }
+    const result = await measureAsync(
+      'usePasswords.searchPasswords',
+      async () => {
+        logger.debug('Searching passwords', { query });
+        
+        return await handleAsyncError(
+          () => executeOperation(() => passwordService.searchPasswords(query || '')),
+          { showToast: false }
+        );
+      },
+      { query, currentPasswordCount: passwords.length }
     );
     
     if (result) {
       setPasswords(result);
       logger.info('Search completed', { query, resultCount: result.length });
     }
-    
-    endTimer();
-  }, [passwordService, executeOperation, handleAsyncError]);
+  }, [passwordService, executeOperation, handleAsyncError, passwords.length]);
 
   /**
-   * Thêm password mới với success notification
+   * Thêm password mới với success notification và performance monitoring
    */
   const addPassword = useCallback(async (entry: PasswordInsert) => {
-    const endTimer = logger.time('addPassword');
-    logger.info('Adding new password', { service: entry.service });
-    
-    await executeOperation(
-      () => passwordService.addPassword(entry),
-      { 
-        successMessage: SUCCESS_MESSAGES.PASSWORD_ADDED,
-        showToast: true 
-      }
+    await measureAsync(
+      'usePasswords.addPassword',
+      async () => {
+        logger.info('Adding new password', { service: entry.service });
+        
+        await executeOperation(
+          () => passwordService.addPassword(entry),
+          { 
+            successMessage: SUCCESS_MESSAGES.PASSWORD_ADDED,
+            showToast: true 
+          }
+        );
+        
+        // Refresh danh sách sau khi thêm thành công
+        await refreshPasswords();
+      },
+      { service: entry.service }
     );
-    
-    // Refresh danh sách sau khi thêm thành công
-    await refreshPasswords();
-    endTimer();
   }, [passwordService, executeOperation, refreshPasswords]);
 
   /**
-   * Cập nhật password với success notification
+   * Cập nhật password với success notification và performance monitoring
    */
   const updatePassword = useCallback(async (id: string, entry: Partial<PasswordInsert>) => {
-    const endTimer = logger.time('updatePassword');
-    logger.info('Updating password', { id, service: entry.service });
-    
-    await executeOperation(
-      () => passwordService.updatePassword(id, entry),
-      { 
-        successMessage: SUCCESS_MESSAGES.PASSWORD_UPDATED,
-        showToast: true 
-      }
+    await measureAsync(
+      'usePasswords.updatePassword',
+      async () => {
+        logger.info('Updating password', { id, service: entry.service });
+        
+        await executeOperation(
+          () => passwordService.updatePassword(id, entry),
+          { 
+            successMessage: SUCCESS_MESSAGES.PASSWORD_UPDATED,
+            showToast: true 
+          }
+        );
+        
+        // Refresh danh sách sau khi cập nhật thành công
+        await refreshPasswords();
+      },
+      { id, service: entry.service }
     );
-    
-    // Refresh danh sách sau khi cập nhật thành công
-    await refreshPasswords();
-    endTimer();
   }, [passwordService, executeOperation, refreshPasswords]);
 
   /**
-   * Xóa password với success notification
+   * Xóa password với success notification và performance monitoring
    */
   const deletePassword = useCallback(async (id: string) => {
-    const endTimer = logger.time('deletePassword');
-    logger.info('Deleting password', { id });
-    
-    await executeOperation(
-      () => passwordService.deletePassword(id),
-      { 
-        successMessage: SUCCESS_MESSAGES.PASSWORD_DELETED,
-        showToast: true 
-      }
+    await measureAsync(
+      'usePasswords.deletePassword',
+      async () => {
+        logger.info('Deleting password', { id });
+        
+        await executeOperation(
+          () => passwordService.deletePassword(id),
+          { 
+            successMessage: SUCCESS_MESSAGES.PASSWORD_DELETED,
+            showToast: true 
+          }
+        );
+        
+        // Refresh danh sách sau khi xóa thành công
+        await refreshPasswords();
+      },
+      { id }
     );
-    
-    // Refresh danh sách sau khi xóa thành công
-    await refreshPasswords();
-    endTimer();
   }, [passwordService, executeOperation, refreshPasswords]);
 
   /**
-   * Xóa toàn bộ passwords (cho testing)
+   * Xóa toàn bộ passwords (cho testing) với performance monitoring
    */
   const clearAllPasswords = useCallback(async () => {
-    const endTimer = logger.time('clearAllPasswords');
-    logger.warn('Clearing all passwords');
-    
-    await executeOperation(
-      () => passwordService.clearAllPasswords(),
-      { 
-        successMessage: "Đã xóa toàn bộ mật khẩu",
-        showToast: true 
+    await measureAsync(
+      'usePasswords.clearAllPasswords',
+      async () => {
+        logger.warn('Clearing all passwords');
+        
+        await executeOperation(
+          () => passwordService.clearAllPasswords(),
+          { 
+            successMessage: "Đã xóa toàn bộ mật khẩu",
+            showToast: true 
+          }
+        );
+        
+        // Refresh danh sách sau khi xóa thành công
+        await refreshPasswords();
+        
+        // Log memory usage sau khi clear
+        logMemoryUsage('after clear all passwords');
       }
     );
-    
-    // Refresh danh sách sau khi xóa thành công
-    await refreshPasswords();
-    endTimer();
   }, [passwordService, executeOperation, refreshPasswords]);
 
   /**
