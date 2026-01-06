@@ -106,6 +106,7 @@ const usePasswordOperations = () => {
     // Form state
     isFormOpen,
     editEntry,
+    formMode, // Thêm formMode
     // Actions
     searchPasswords,
     openAddForm,
@@ -138,6 +139,7 @@ const Index = () => {
     stats,
     isFormOpen,
     editEntry,
+    formMode, // Thêm formMode
     searchPasswords,
     openAddForm,
     closeForm,

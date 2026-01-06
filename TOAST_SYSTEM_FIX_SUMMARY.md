@@ -1,65 +1,95 @@
-# Toast System Fix Summary
+# Toast System Fix & API Sync Configuration - Summary
 
-## Vấn đề gốc
-- Lỗi `ReferenceError: toast is not defined` trong production build
-- Xung đột giữa hai toast systems:
-  - shadcn/ui toast system (`@/hooks/use-toast`)
-  - Sonner toast system (`sonner` library)
+## Vấn đề đã khắc phục
 
-## Nguyên nhân
-- App.tsx đang sử dụng cả hai toast systems cùng lúc
-- Các hooks khác nhau sử dụng toast systems khác nhau
-- Không có sự nhất quán trong việc sử dụng toast
+### 1. Lỗi Toast System
+- **Lỗi**: `ReferenceError: toast is not defined` trong production
+- **Nguyên nhân**: Conflict giữa shadcn/ui toast và Sonner toast, import sai tên hook
+- **Giải pháp**: 
+  - Đơn giản hóa `useToastNotifications` hook để sử dụng trực tiếp Sonner
+  - Sửa import `useMobile` thành `useIsMobile` trong các toast hooks
+  - Cập nhật `Index.tsx` để sử dụng `useToastNotifications` thay vì `useToast`
 
-## Giải pháp đã áp dụng
+### 2. API Sync Configuration
+- **Vấn đề**: API calls thất bại do URL endpoint sai
+- **Nguyên nhân**: API_CONFIG sử dụng absolute URL thay vì relative URL cho Netlify Functions
+- **Giải pháp**:
+  - Cập nhật `API_CONFIG.BASE_URL` từ `https://yapee.online/api/passwords` thành `/api`
+  - Tăng timeout từ 5s lên 10s để tránh timeout
+  - Sửa Netlify Functions để xử lý path đúng cách
 
-### 1. Chuẩn hóa Toast System
-- **Chọn Sonner** làm toast system chính vì:
-  - Đơn giản hơn và ít phụ thuộc
-  - Performance tốt hơn
-  - API dễ sử dụng hơn
-
-### 2. Cập nhật các file
-
-#### `src/hooks/use-toast-notifications.ts`
-- Thay đổi từ `useToast` sang `toast` từ sonner
-- Cập nhật API calls:
-  - `toast.success()` thay vì `toast({ variant: "default" })`
-  - `toast.error()` thay vì `toast({ variant: "destructive" })`
-  - `toast.info()` và `toast.warning()`
-
-#### `src/App.tsx`
-- Xóa import `Toaster` từ shadcn/ui
-- Chỉ giữ lại `Sonner` toaster
-- Đơn giản hóa provider hierarchy
-
-#### `src/hooks/use-passwords-neon.ts`
-- Cập nhật từ `useToast` sang `useToastNotifications`
-- Thay đổi API call từ `toast({...})` sang `showError(...)`
-
-#### `src/components/ui/use-toast.ts`
-- Cập nhật re-export để chỉ export `toast` từ sonner
-- Xóa `useToast` export
-
-## Kết quả
-- ✅ Build thành công không có lỗi
-- ✅ Dev server chạy bình thường
-- ✅ Toast system nhất quán trong toàn bộ ứng dụng
-- ✅ Giảm bundle size do loại bỏ shadcn/ui toast dependencies
-
-## Lợi ích
-1. **Nhất quán**: Tất cả toast notifications sử dụng cùng một system
-2. **Đơn giản**: API đơn giản hơn với `toast.success()`, `toast.error()`
-3. **Performance**: Ít dependencies và code nhẹ hơn
-4. **Bảo trì**: Dễ dàng maintain và debug hơn
+### 3. Database Initialization
+- **Thêm**: Auto-create table và indexes trong Netlify Functions
+- **Lợi ích**: Đảm bảo database sẵn sàng khi deploy lần đầu
 
 ## Files đã thay đổi
-- `src/hooks/use-toast-notifications.ts`
-- `src/App.tsx`
-- `src/hooks/use-passwords-neon.ts`
-- `src/components/ui/use-toast.ts`
 
-## Lưu ý cho tương lai
-- Luôn sử dụng `useToastNotifications` hook thay vì trực tiếp import `toast`
-- Không mix hai toast systems khác nhau
-- Kiểm tra build trước khi deploy để tránh runtime errors
+### Core Fixes
+- `src/hooks/use-toast-notifications.ts` - Đơn giản hóa hook
+- `src/pages/Index.tsx` - Cập nhật import và sử dụng toast
+- `src/lib/config/app-config.ts` - Sửa API configuration
+- `netlify/functions/api.js` - Cải thiện path handling và thêm DB init
+
+### Environment Configuration
+- `.env.local` - Thêm API configuration variables
+- `netlify.toml` - Đã có sẵn redirect rules đúng
+
+### Removed Files
+- `src/hooks/toast/use-basic-toast.ts`
+- `src/hooks/toast/use-enhanced-toast.ts` 
+- `src/hooks/toast/use-toast-manager.ts`
+
+## Kết quả mong đợi
+
+### ✅ Toast System
+- Không còn lỗi `toast is not defined` trong production
+- Toast notifications hoạt động ổn định với Sonner
+- Backward compatibility với existing code
+
+### ✅ Cross-Device Sync
+- API calls sử dụng đúng Netlify Functions endpoint
+- Database tự động khởi tạo khi cần
+- Passwords sync giữa các thiết bị qua Neon PostgreSQL
+
+### ✅ Build & Deploy
+- Build thành công không có lỗi
+- Code đã được push lên GitHub
+- Netlify sẽ auto-deploy với cấu hình mới
+
+## Cách test
+
+1. **Local Testing**:
+   ```bash
+   npm run build  # ✅ Thành công
+   npm run preview # Test production build
+   ```
+
+2. **Production Testing**:
+   - Mở app trên Netlify URL
+   - Thêm password mới
+   - Mở trên thiết bị khác để kiểm tra sync
+   - Kiểm tra console không có lỗi toast
+
+## Environment Variables cần thiết trên Netlify
+
+Đảm bảo các biến sau được set trong Netlify Dashboard:
+
+```env
+DATABASE_URL=postgresql://neondb_owner:npg_DSM3EZX8jfIa@ep-dawn-smoke-a13kcspj-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+VITE_API_BASE_URL=/api
+VITE_ENABLE_API_SYNC=true
+VITE_API_TIMEOUT=10000
+```
+
+## Next Steps
+
+1. Kiểm tra Netlify deploy status
+2. Test cross-device sync functionality  
+3. Monitor console logs cho any remaining errors
+4. Nếu cần, có thể thêm error handling và retry logic
+
+---
+
+**Status**: ✅ COMPLETED - Ready for production testing
+**Deploy**: Auto-deploying via GitHub integration
+**Estimated Fix Time**: ~15 minutes for Netlify build + deploy
