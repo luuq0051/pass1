@@ -42,16 +42,8 @@ export const getCurrentUrl = (): string => {
 };
 
 /**
- * Global fallback for getCurrentUrl to prevent runtime errors
- * This ensures the function is available in all contexts including production builds
- */
-if (typeof window !== 'undefined') {
-  (window as any).getCurrentUrl = getCurrentUrl;
-}
-
-/**
- * Note: Global fallback removed - use ConfigurationService instead
- * @deprecated Direct global access removed for better architecture
+ * Note: Global window access removed for better architecture
+ * Use ConfigurationService.getAppUrl() instead of direct global access
  * @see ConfigurationService for type-safe configuration access
  */
 
@@ -59,7 +51,7 @@ if (typeof window !== 'undefined') {
  * Domain validation utilities
  */
 export const isDomainValid = (domain: string): boolean => {
-  return Object.values(DOMAINS).includes(domain as any);
+  return Object.values(DOMAINS).includes(domain as typeof DOMAINS[keyof typeof DOMAINS]);
 };
 
 /**
@@ -69,16 +61,6 @@ export const isProductionDomain = (): boolean => {
   if (typeof window === "undefined") return ENV_ACCESS.isProduction;
   return window.location.hostname === DOMAINS.PRODUCTION;
 };
-
-/**
- * Global fallbacks for domain functions to prevent runtime errors
- * This ensures the functions are available in all contexts including production builds
- */
-if (typeof window !== 'undefined') {
-  (window as any).getCurrentUrl = getCurrentUrl;
-  (window as any).getCurrentDomain = getCurrentDomain;
-  (window as any).isProductionDomain = isProductionDomain;
-}
 
 export type DomainType = keyof typeof DOMAINS;
 export type UrlType = keyof typeof URLS;

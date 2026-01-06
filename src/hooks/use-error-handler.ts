@@ -1,25 +1,30 @@
 /**
- * useErrorHandler Hook
- * Centralized error handling với toast notifications
+ * useErrorHandler Hook - Refactored với Standardized Error Patterns
+ * Centralized error handling sử dụng error-patterns utilities
  * 
  * Features:
- * - Consistent error messaging
+ * - Consistent error messaging với AppError
  * - Toast integration
  * - Error logging
  * - Retry logic support
+ * - Type-safe error handling
  */
 
 import { useCallback } from 'react';
 import { useToastNotifications } from '@/hooks/use-toast-notifications';
 import { ERROR_MESSAGES } from '@/lib/constants/app-constants';
-import { logger } from '@/lib/utils/logger';
+import { 
+  AppError, 
+  ErrorType, 
+  handleAsyncOperation,
+  type ErrorHandlerConfig 
+} from '@/lib/utils/error-patterns';
 
 /**
- * Error handler configuration
+ * Hook-specific error handler configuration
+ * Extends base ErrorHandlerConfig với toast-specific options
  */
-interface ErrorHandlerConfig {
-  showToast?: boolean;
-  logError?: boolean;
+interface UseErrorHandlerConfig extends ErrorHandlerConfig {
   fallbackMessage?: string;
 }
 
@@ -27,26 +32,26 @@ interface ErrorHandlerConfig {
  * Error handler return type
  */
 interface UseErrorHandlerReturn {
-  handleError: (error: unknown, config?: ErrorHandlerConfig) => void;
+  handleError: (error: unknown, config?: UseErrorHandlerConfig) => void;
   handleAsyncError: <T>(
     operation: () => Promise<T>,
-    config?: ErrorHandlerConfig
+    config?: UseErrorHandlerConfig
   ) => Promise<T | null>;
 }
 
 /**
- * Custom hook để xử lý errors một cách nhất quán
- * Updated: Sử dụng useToastNotifications để giảm code duplication
+ * Custom hook sử dụng standardized error patterns
+ * Refactor: Tích hợp với error-patterns.ts để tránh code duplication
  */
 export const useErrorHandler = (): UseErrorHandlerReturn => {
-  const { showError } = useToastNotifications();
+  const { showError, showErrorWithRetry } = useToastNotifications();
 
   /**
-   * Xử lý error với configuration options
+   * Xử lý error với AppError patterns
    */
   const handleError = useCallback((
     error: unknown,
-    config: ErrorHandlerConfig = {}
+    config: UseErrorHandlerConfig = {}
   ) => {
     const {
       showToast = true,
@@ -54,30 +59,38 @@ export const useErrorHandler = (): UseErrorHandlerReturn => {
       fallbackMessage = ERROR_MESSAGES.UNKNOWN_ERROR
     } = config;
 
+    // Convert to AppError nếu chưa phải
+    const appError = error instanceof AppError ? error : 
+      new AppError(
+        error instanceof Error ? error.message : 'Unknown error',
+        ErrorType.UNKNOWN,
+        fallbackMessage
+      );
+
     // Log error nếu được enable
     if (logError) {
-      logger.error('Error handled by useErrorHandler', error as Error);
+      console.error('Error handled by useErrorHandler', appError);
     }
 
     // Hiển thị toast notification nếu được enable
     if (showToast) {
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : fallbackMessage;
-
-      showError(errorMessage);
+      showError(appError.userMessage);
     }
   }, [showError]);
 
   /**
-   * Wrapper cho async operations với error handling
+   * Wrapper cho async operations sử dụng standardized handler
    */
   const handleAsyncError = useCallback(async <T>(
     operation: () => Promise<T>,
-    config: ErrorHandlerConfig = {}
+    config: UseErrorHandlerConfig = {}
   ): Promise<T | null> => {
     try {
-      return await operation();
+      // Sử dụng standardized async handler
+      return await handleAsyncOperation(operation, {
+        ...config,
+        showToast: false, // Handle toast manually để có control tốt hơn
+      });
     } catch (error) {
       handleError(error, config);
       return null;

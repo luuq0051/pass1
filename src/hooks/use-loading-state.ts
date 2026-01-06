@@ -1,23 +1,26 @@
 /**
- * useLoadingState Hook
+ * useLoadingState Hook - Enhanced với Standardized Error Patterns
  * Tách riêng loading state management để tái sử dụng
  * 
  * Features:
  * - Centralized loading state
- * - Error handling
- * - Operation wrapper
+ * - Standardized error handling
+ * - Operation wrapper với retry logic
  * - Toast notifications integration
+ * - Performance tracking
  */
 
 import { useState, useCallback } from 'react';
 import { useToastNotifications } from '@/hooks/use-toast-notifications';
-import { logger } from '@/lib/utils/logger';
+import { AppError, ErrorType, handleAsyncOperation } from '@/lib/utils/error-patterns';
 
 interface LoadingStateConfig {
   showToast?: boolean;
   successMessage?: string;
   errorMessage?: string;
   logErrors?: boolean;
+  retryCount?: number;
+  retryDelay?: number;
 }
 
 interface UseLoadingStateReturn {
@@ -32,9 +35,8 @@ interface UseLoadingStateReturn {
 }
 
 /**
- * Custom hook để quản lý loading state và error handling
- * Refactor: Tách từ usePasswords để tái sử dụng
- * Fixed: Sử dụng config parameter để tránh unused parameter warning
+ * Enhanced useLoadingState Hook với Standardized Error Patterns
+ * Refactor: Tích hợp error patterns và retry logic
  */
 export const useLoadingState = (): UseLoadingStateReturn => {
   const [loading, setLoading] = useState(false);
@@ -49,38 +51,48 @@ export const useLoadingState = (): UseLoadingStateReturn => {
       showToast = true,
       successMessage,
       errorMessage,
-      logErrors = true
+      logErrors = true,
+      retryCount = 0,
+      retryDelay = 1000
     } = config;
 
     setLoading(true);
     setError(null);
     
     try {
-      const result = await operation();
+      // Sử dụng standardized error handler với retry logic
+      const result = await handleAsyncOperation(operation, {
+        showToast: false, // Handle toast manually để có control tốt hơn
+        logError: logErrors,
+        retryCount,
+        retryDelay
+      });
       
-      // Show success toast if configured
-      if (showToast && successMessage) {
-        showSuccess(successMessage);
+      if (result !== null) {
+        // Show success toast if configured
+        if (showToast && successMessage) {
+          showSuccess(successMessage);
+        }
+        return result;
       }
       
-      return result;
+      return null;
     } catch (err) {
-      const finalErrorMessage = errorMessage || 
-        (err instanceof Error ? err.message : 'Có lỗi xảy ra');
+      const appError = err instanceof AppError ? err : 
+        new AppError(
+          err instanceof Error ? err.message : 'Unknown error',
+          ErrorType.UNKNOWN,
+          errorMessage
+        );
       
-      setError(finalErrorMessage);
-      
-      // Log error if enabled
-      if (logErrors) {
-        logger.error('Operation failed in useLoadingState', err as Error);
-      }
+      setError(appError.userMessage);
       
       // Show error toast if enabled
       if (showToast) {
-        showError(finalErrorMessage);
+        showError(appError.userMessage);
       }
       
-      throw err;
+      throw appError;
     } finally {
       setLoading(false);
     }

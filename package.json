@@ -21,7 +21,11 @@
     "validate:html": "tsx scripts/html-validator.ts",
     "validate:html:basic": "tsx scripts/html-validator.ts --config basic",
     "validate:html:dev": "tsx scripts/html-validator.ts --config development",
-    "test:validator": "jest scripts/__tests__/html-validator.test.ts"
+    "test:validator": "jest scripts/__tests__/html-validator.test.ts",
+    "cleanup": "node cleanup-safe.js",
+    "cleanup:dry-run": "node cleanup-safe.js --dry-run",
+    "quality:check": "npm run lint && npm run test:run && npm run build",
+    "quality:fix": "eslint . --fix"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
