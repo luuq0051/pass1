@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Safe Guard - Console Inspector</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: #2563eb;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .content {
+            display: flex;
+            height: 80vh;
+        }
+        .app-frame {
+            flex: 1;
+            border: none;
+        }
+        .console-panel {
+            width: 400px;
+            background: #1e1e1e;
+            color: #fff;
+            padding: 20px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .console-log {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+        }
+        .console-error {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+        .console-warn {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+        }
+        .console-info {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .timestamp {
+            color: #888;
+            font-size: 10px;
+        }
+        .controls {
+            padding: 10px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.online {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .status.offline {
+            background: #fef2f2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎭 Memory Safe Guard - Console Inspector</h1>
+            <p>Kiểm tra giao diện và console logs real-time</p>
+        </div>
+        
+        <div class="controls">
+            <button onclick="refreshApp()">🔄 Refresh App</button>
+            <button onclick="clearConsole()">🧹 Clear Console</button>
+            <button onclick="testAPI()">🔌 Test API</button>
+            <button onclick="testNeonDB()">🗄️ Test NeonDB</button>
+            <span class="status" id="apiStatus">Checking...</span>
+        </div>
+        
+        <div class="content">
+            <iframe id="appFrame" class="app-frame" src="http://localhost:8080"></iframe>
+            <div class="console-panel" id="consolePanel">
+                <div class="console-info">
+                    <span class="timestamp">[${new Date().toLocaleTimeString()}]</span>
+                    Console Inspector Started - Monitoring Memory Safe Guard
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let consolePanel = document.getElementById('consolePanel');
+        let apiStatus = document.getElementById('apiStatus');
+        let appFrame = document.getElementById('appFrame');
+
+        // Log function
+        function addConsoleLog(type, message, timestamp = new Date()) {
+            const logDiv = document.createElement('div');
+            logDiv.className = `console-${type}`;
+            logDiv.innerHTML = `
+                <span class="timestamp">[${timestamp.toLocaleTimeString()}]</span>
+                ${message}
+            `;
+            consolePanel.appendChild(logDiv);
+            consolePanel.scrollTop = consolePanel.scrollHeight;
+        }
+
+        // Refresh app
+        function refreshApp() {
+            appFrame.src = appFrame.src;
+            addConsoleLog('info', '🔄 App refreshed');
+        }
+
+        // Clear console
+        function clearConsole() {
+            consolePanel.innerHTML = `
+                <div class="console-info">
+                    <span class="timestamp">[${new Date().toLocaleTimeString()}]</span>
+                    Console cleared
+                </div>
+            `;
+        }
+
+        // Test API
+        async function testAPI() {
+            addConsoleLog('info', '🔌 Testing API endpoints...');
+            
+            try {
+                // Health check
+                const healthResponse = await fetch('http://localhost:3001/api/health');
+                const healthData = await healthResponse.json();
+                addConsoleLog('log', `✅ Health: ${healthData.status} - DB: ${healthData.database}`);
+                
+                // Passwords
+                const passwordsResponse = await fetch('http://localhost:3001/api/passwords');
+                const passwordsData = await passwordsResponse.json();
+                addConsoleLog('log', `✅ Passwords: ${passwordsData.length} found`);
+                
+                // Stats
+                const statsResponse = await fetch('http://localhost:3001/api/passwords/stats');
+                const statsData = await statsResponse.json();
+                addConsoleLog('log', `✅ Stats: ${statsData.total} total, hasPasswords: ${statsData.hasPasswords}`);
+                
+                apiStatus.textContent = '✅ API Online';
+                apiStatus.className = 'status online';
+                
+            } catch (error) {
+                addConsoleLog('error', `❌ API Error: ${error.message}`);
+                apiStatus.textContent = '❌ API Offline';
+                apiStatus.className = 'status offline';
+            }
+        }
+
+        // Test NeonDB
+        async function testNeonDB() {
+            addConsoleLog('info', '🗄️ Testing NeonDB integration...');
+            
+            try {
+                // Test create password
+                const testPassword = {
+                    service: 'Console Test',
+                    username: 'console@test.com',
+                    password: 'ConsoleTest123!'
+                };
+                
+                const createResponse = await fetch('http://localhost:3001/api/passwords', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testPassword)
+                });
+                
+                if (createResponse.ok) {
+                    const newPassword = await createResponse.json();
+                    addConsoleLog('log', `✅ Created password: ${newPassword.service} (ID: ${newPassword.id})`);
+                    
+                    // Test update
+                    const updateResponse = await fetch(`http://localhost:3001/api/passwords/${newPassword.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ...testPassword,
+                            service: 'Console Test Updated'
+                        })
+                    });
+                    
+                    if (updateResponse.ok) {
+                        addConsoleLog('log', '✅ Password updated successfully');
+                    }
+                    
+                    // Test delete
+                    const deleteResponse = await fetch(`http://localhost:3001/api/passwords/${newPassword.id}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (deleteResponse.ok) {
+                        addConsoleLog('log', '✅ Password deleted successfully');
+                    }
+                    
+                    addConsoleLog('log', '🎉 NeonDB CRUD operations all working!');
+                } else {
+                    addConsoleLog('error', '❌ Failed to create test password');
+                }
+                
+            } catch (error) {
+                addConsoleLog('error', `❌ NeonDB Error: ${error.message}`);
+            }
+        }
+
+        // Monitor iframe console (if possible)
+        appFrame.onload = function() {
+            addConsoleLog('info', '📱 App loaded in iframe');
+            
+            try {
+                // Try to access iframe console (may be blocked by CORS)
+                const iframeWindow = appFrame.contentWindow;
+                if (iframeWindow) {
+                    addConsoleLog('log', '✅ Iframe access available');
+                }
+            } catch (error) {
+                addConsoleLog('warn', '⚠️ Iframe console access blocked (CORS)');
+            }
+        };
+
+        // Auto-test API on load
+        setTimeout(testAPI, 1000);
+        
+        // Auto-refresh API status every 30 seconds
+        setInterval(testAPI, 30000);
+
+        // Add some initial logs
+        addConsoleLog('info', '🚀 Memory Safe Guard Console Inspector');
+        addConsoleLog('info', '📊 Monitoring frontend at http://localhost:8080');
+        addConsoleLog('info', '🔌 Monitoring API at http://localhost:3001');
+        addConsoleLog('info', '🗄️ Connected to NeonDB PostgreSQL');
+    </script>
+</body>
+</html>

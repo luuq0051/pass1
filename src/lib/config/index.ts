@@ -39,6 +39,9 @@ export {
   isProductionDomain 
 } from './domain-config';
 
+// Import for internal use
+import { getCurrentUrl, isProductionDomain } from './domain-config';
+
 // Environment configuration
 export { config as environmentConfig } from './environment';
 
@@ -73,7 +76,7 @@ export type { ConfigHealthStatus } from './runtime-validator';
 // Toast configuration
 export { TOAST_CONFIG } from './toast-config';
 
-// Configuration factory
+// Configuration factory (DEPRECATED - Use unified-types instead)
 export {
   ConfigurationFactory,
   getCurrentConfig,
@@ -83,9 +86,24 @@ export type {
   ConfigProfile,
   ApiConfiguration,
   DatabaseConfiguration,
-  ApplicationConfiguration,
+  ApplicationConfiguration as FactoryApplicationConfiguration,
   CompleteConfiguration
 } from './config-factory';
+
+// NEW: Unified Configuration System
+export {
+  configurationProvider,
+  getUnifiedConfig,
+  validateConfig,
+  getConfigHealth
+} from './configuration-provider';
+export type {
+  UnifiedApplicationConfiguration,
+  ConfigurationProfile,
+  ConfigurationValidationResult,
+  ConfigurationHealthStatus,
+  CONFIG_CONSTANTS
+} from './unified-types';
 
 // New: API-specific validation
 export {
@@ -99,10 +117,28 @@ export {
   configManager
 } from './config-manager';
 
+// New: Configuration health checking
+export {
+  ConfigHealthChecker,
+  checkConfigHealth,
+  getConfigSummary
+} from './config-health-checker';
+export type { ConfigHealthStatus as HealthCheckerStatus } from './config-health-checker';
+
 // Type exports
 export type { DomainType, UrlType } from './domain-config';
 export type { Config } from './environment';
 export type { EnvironmentConfig } from './env-utils';
+export type { 
+  AppConfig, 
+  ApiConfig, 
+  DatabaseConfig, 
+  DomainConfig, 
+  ThemeConfig, 
+  TimeConstants, 
+  RoutesConfig, 
+  ApplicationConfiguration 
+} from '@/lib/types/config-types';
 
 /**
  * Convenience exports cho backward compatibility
@@ -114,8 +150,9 @@ export const isProduction = isProductionDomain;
  * Validated configuration object
  * Tất cả configs đã được validate
  */
-import { APP_CONFIG, API_CONFIG, DATABASE_CONFIG, DOMAIN_CONFIG } from './app-config';
+import { APP_CONFIG, API_CONFIG, DATABASE_CONFIG, DOMAIN_CONFIG, ENV_CONFIG, THEME_CONFIG, ROUTES } from './app-config';
 import { validateAllConfigs } from './config-validator';
+import type { ApplicationConfiguration } from '@/lib/types/config-types';
 
 export const VALIDATED_CONFIG = validateAllConfigs({
   app: APP_CONFIG,
@@ -123,3 +160,32 @@ export const VALIDATED_CONFIG = validateAllConfigs({
   database: DATABASE_CONFIG,
   domain: DOMAIN_CONFIG,
 });
+
+// NEW: Performance monitoring
+export {
+  configPerformanceMonitor,
+  measureConfigLoad,
+  measureConfigValidation,
+  recordCacheHit,
+  recordCacheMiss,
+  getConfigPerformance
+} from './config-performance-monitor';
+
+// NEW: Migration support
+export {
+  ConfigurationMigrationAdapter,
+  migrationUtils,
+  APPLICATION_CONFIG // Backward compatibility
+} from './migration-helper';
+
+/**
+ * RECOMMENDED: Use unified configuration system
+ * 
+ * Example:
+ * ```typescript
+ * import { getUnifiedConfig } from '@/lib/config';
+ * 
+ * const config = getUnifiedConfig();
+ * console.log(config.app.name);
+ * ```
+ */

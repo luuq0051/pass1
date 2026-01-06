@@ -6,35 +6,63 @@
 import { QueryClient } from "@tanstack/react-query";
 import { ENV_ACCESS } from './env-utils';
 import { buildApiBaseUrl } from './url-builder';
+import { getAppVersion } from '@/lib/utils/version-utils';
+import type { 
+  AppConfig, 
+  EnvironmentConfig, 
+  ThemeConfig, 
+  ApiConfig, 
+  DatabaseConfig, 
+  DomainConfig, 
+  TimeConstants,
+  RoutesConfig 
+} from '@/lib/types/config-types';
+
+/**
+ * Time constants (milliseconds)
+ * Centralized time values để tránh magic numbers
+ */
+const TIME_CONSTANTS: TimeConstants = {
+  CACHE_STALE_TIME: 5 * 60 * 1000, // 5 phút - thời gian cache cho password data
+  API_TIMEOUT_DEFAULT: 10 * 1000, // 10 giây - timeout mặc định cho production
+  API_TIMEOUT_MIN: 3 * 1000, // 3 giây - timeout tối thiểu để tránh premature failures
+  RETRY_ATTEMPTS_QUERY: 2, // Số lần retry cho queries
+  RETRY_ATTEMPTS_MUTATION: 1, // Số lần retry cho mutations
+} as const;
 
 /**
  * App metadata configuration
+ * Note: VERSION được quản lý thông qua version-utils để đảm bảo consistency
  */
-export const APP_CONFIG = {
+export const APP_CONFIG: AppConfig = {
   NAME: "Memory Safe Guard",
   DESCRIPTION: "Ứng dụng quản lý mật khẩu hiện đại và an toàn",
-  VERSION: "1.0.0", // Có thể lấy từ package.json
+  VERSION: getAppVersion(), // Refactored: Sử dụng utility function
 } as const;
 
 /**
  * Environment detection utilities
  * Centralized environment access với validation
  * 
- * Refactored: Loại bỏ deprecated API config để tránh duplication
+ * Refactored: Thêm Neon DB configuration
  */
-export const ENV_CONFIG = {
+export const ENV_CONFIG: EnvironmentConfig = {
   // App environment
   isDevelopment: ENV_ACCESS.isDevelopment,
   isProduction: ENV_ACCESS.isProduction,
   
-  // Database URL (nếu có)
+  // Database configuration
   DATABASE_URL: ENV_ACCESS.getEnvVar('DATABASE_URL', ''),
+  USE_NEONDB: ENV_ACCESS.getBooleanEnv('VITE_USE_NEONDB', false),
+  
+  // Encryption configuration
+  ENCRYPTION_KEY: ENV_ACCESS.getEnvVar('VITE_ENCRYPTION_KEY', ''),
 } as const;
 
 /**
  * Theme configuration
  */
-export const THEME_CONFIG = {
+export const THEME_CONFIG: ThemeConfig = {
   DEFAULT_THEME: "dark" as const,
   STORAGE_KEY: "memory-safe-guard-theme",
 } as const;
@@ -46,18 +74,18 @@ export const THEME_CONFIG = {
 export const QUERY_CLIENT_CONFIG = {
   defaultOptions: {
     queries: {
-      // Cache data trong 5 phút cho password data
-      staleTime: 5 * 60 * 1000,
-      // Retry 2 lần khi có lỗi
-      retry: 2,
+      // Cache data trong thời gian được định nghĩa cho password data
+      staleTime: TIME_CONSTANTS.CACHE_STALE_TIME,
+      // Retry với số lần được định nghĩa khi có lỗi
+      retry: TIME_CONSTANTS.RETRY_ATTEMPTS_QUERY,
       // Không refetch khi window focus (bảo mật)
       refetchOnWindowFocus: false,
       // Không refetch khi reconnect (tránh leak data)
       refetchOnReconnect: false,
     },
     mutations: {
-      // Retry 1 lần cho mutations
-      retry: 1,
+      // Retry với số lần được định nghĩa cho mutations
+      retry: TIME_CONSTANTS.RETRY_ATTEMPTS_MUTATION,
     },
   },
 } as const;
@@ -70,16 +98,10 @@ export const createQueryClient = () => new QueryClient(QUERY_CLIENT_CONFIG);
 /**
  * Route configuration
  */
-export const ROUTES = {
+export const ROUTES: RoutesConfig = {
   HOME: "/",
   NOT_FOUND: "*",
 } as const;
-
-/**
- * API configuration cho hybrid approach
- * Refactored: Sử dụng URL Builder để tách biệt complex logic
- */
-import { buildApiBaseUrl } from './url-builder';
 
 /**
  * API Default Configuration
@@ -90,11 +112,11 @@ const API_DEFAULTS = {
   DEFAULT_SYNC_ENABLED: ENV_ACCESS.isProduction,
   // Fallback sync disabled để tránh API timeout trong development
   FALLBACK_SYNC_ENABLED: false,
-  DEFAULT_TIMEOUT: 10000, // 10s timeout cho production stability
-  MIN_TIMEOUT: 3000, // Minimum timeout để tránh premature failures
+  DEFAULT_TIMEOUT: TIME_CONSTANTS.API_TIMEOUT_DEFAULT,
+  MIN_TIMEOUT: TIME_CONSTANTS.API_TIMEOUT_MIN,
 } as const;
 
-export const API_CONFIG = {
+export const API_CONFIG: ApiConfig = {
   // Clean URL construction với proper separation of concerns
   BASE_URL: buildApiBaseUrl(),
   // Smart sync configuration với proper fallback logic
@@ -112,7 +134,7 @@ export const API_CONFIG = {
 /**
  * Database configuration
  */
-export const DATABASE_CONFIG = {
+export const DATABASE_CONFIG: DatabaseConfig = {
   NAME: "memorySafeGuardDB",
   VERSION: 1,
   STORE_NAME: "passwords",
@@ -121,13 +143,16 @@ export const DATABASE_CONFIG = {
 
 /**
  * Domain configuration
+ * Refactored: Loại bỏ trùng lặp và tạo computed properties
  */
-export const DOMAIN_CONFIG = {
+const DOMAIN_BASE = "silver-bublanina-ab8828.netlify.app" as const;
+
+export const DOMAIN_CONFIG: DomainConfig = {
   APP_NAME: "Memory Safe Guard",
   APP_DESCRIPTION: "Quản lý mật khẩu an toàn và hiện đại",
-  DOMAIN: "silver-bublanina-ab8828.netlify.app",
-  HOMEPAGE: "https://silver-bublanina-ab8828.netlify.app",
-  // Thêm properties để consistent với Footer component
-  PRODUCTION_DOMAIN: "silver-bublanina-ab8828.netlify.app",
-  PRODUCTION_URL: "https://silver-bublanina-ab8828.netlify.app",
+  DOMAIN: DOMAIN_BASE,
+  HOMEPAGE: `https://${DOMAIN_BASE}`,
+  // Computed properties để tránh trùng lặp
+  PRODUCTION_DOMAIN: DOMAIN_BASE,
+  PRODUCTION_URL: `https://${DOMAIN_BASE}`,
 } as const;

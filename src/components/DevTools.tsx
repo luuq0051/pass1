@@ -1,240 +1,309 @@
 /**
  * DevTools Component
- * Development utilities và debugging tools
- * Chỉ hiển thị trong development mode
+ * Development tools cho testing và debugging Neon DB integration
  */
 
 import { useState } from 'react';
-import { Code, Database, Settings, Zap, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ConfigHealthIndicator } from './ConfigHealthIndicator';
-import { useConfigHealth, useConfigSummary } from '@/hooks/use-config-health';
-import { usePasswords } from '@/hooks/use-passwords';
+import { Separator } from '@/components/ui/separator';
+import { 
+  Database, 
+  Cloud, 
+  HardDrive, 
+  RefreshCw, 
+  Trash2, 
+  Download,
+  Upload,
+  Settings,
+  Bug
+} from 'lucide-react';
+import { ServiceFactory } from '@/lib/services/service-factory';
+import { useToastNotifications } from '@/hooks/use-toast-notifications';
 import { logger } from '@/lib/utils/logger';
 import { cn } from '@/lib/utils';
 
-/**
- * DevTools Component Props
- */
 interface DevToolsProps {
   className?: string;
 }
 
-/**
- * DevTools Component
- * Comprehensive development tools cho debugging và monitoring
- */
 export const DevTools = ({ className }: DevToolsProps) => {
-  const [isVisible, setIsVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState('config');
-  
-  const { status: configStatus, healthScore } = useConfigHealth();
-  const configSummary = useConfigSummary();
-  const { passwords, stats, loading, error } = usePasswords();
-
-  // Chỉ hiển thị trong development
-  if (import.meta.env.PROD) {
-    return null;
-  }
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { showSuccess, showError, showInfo } = useToastNotifications();
 
   /**
-   * Toggle visibility
+   * Get service information
    */
-  const toggleVisibility = () => {
-    setIsVisible(!isVisible);
-    logger.debug('DevTools visibility toggled', { isVisible: !isVisible });
-  };
-
-  /**
-   * Clear all data (for testing)
-   */
-  const handleClearData = async () => {
-    if (confirm('Are you sure you want to clear all password data? This cannot be undone.')) {
-      try {
-        // This would need to be implemented in usePasswords
-        logger.warn('Clear all data requested from DevTools');
-        alert('Clear data functionality needs to be implemented');
-      } catch (error) {
-        logger.error('Failed to clear data', error as Error);
-      }
+  const getServiceInfo = () => {
+    try {
+      const info = ServiceFactory.getServiceInfo();
+      showInfo('Service Info', JSON.stringify(info, null, 2));
+      logger.info('Service info retrieved', info);
+    } catch (error) {
+      showError('Error', 'Failed to get service info');
+      logger.error('Failed to get service info', error);
     }
   };
 
   /**
-   * Export configuration for debugging
+   * Test database connection
    */
-  const handleExportConfig = () => {
-    const configData = {
-      summary: configSummary,
-      status: configStatus,
-      healthScore,
-      timestamp: new Date().toISOString()
-    };
-    
-    const blob = new Blob([JSON.stringify(configData, null, 2)], { 
-      type: 'application/json' 
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `config-debug-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    logger.info('Configuration exported for debugging');
+  const testConnection = async () => {
+    setIsLoading(true);
+    try {
+      const service = ServiceFactory.getDefaultPasswordService();
+      
+      if ('healthCheck' in service && typeof service.healthCheck === 'function') {
+        const isHealthy = await service.healthCheck();
+        if (isHealthy) {
+          showSuccess('Connection Test', 'Database connection is healthy');
+        } else {
+          showError('Connection Test', 'Database connection failed');
+        }
+      } else {
+        // Fallback test
+        await service.getStats();
+        showSuccess('Connection Test', 'Database connection is working');
+      }
+    } catch (error) {
+      showError('Connection Test', `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logger.error('Connection test failed', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  return (
-    <>
-      {/* Toggle Button */}
+  /**
+   * Switch to Neon DB
+   */
+  const switchToNeonDB = async () => {
+    setIsLoading(true);
+    try {
+      ServiceFactory.clearCache();
+      const neonService = ServiceFactory.getNeonPasswordService();
+      const stats = await neonService.getStats();
+      
+      showSuccess('Switched to Neon DB', `Connected successfully. Total passwords: ${stats.total}`);
+      logger.info('Switched to Neon DB', stats);
+    } catch (error) {
+      showError('Switch Failed', `Cannot switch to Neon DB: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logger.error('Failed to switch to Neon DB', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Switch to IndexedDB
+   */
+  const switchToIndexedDB = async () => {
+    setIsLoading(true);
+    try {
+      ServiceFactory.clearCache();
+      const indexedDBService = ServiceFactory.getIndexedDBPasswordService();
+      const stats = await indexedDBService.getStats();
+      
+      showSuccess('Switched to IndexedDB', `Connected successfully. Total passwords: ${stats.total}`);
+      logger.info('Switched to IndexedDB', stats);
+    } catch (error) {
+      showError('Switch Failed', `Cannot switch to IndexedDB: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logger.error('Failed to switch to IndexedDB', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Clear all data
+   */
+  const clearAllData = async () => {
+    if (!confirm('Are you sure you want to clear all password data? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const service = ServiceFactory.getDefaultPasswordService();
+      await service.clearAllPasswords();
+      
+      showSuccess('Data Cleared', 'All password data has been cleared');
+      logger.warn('All password data cleared via DevTools');
+    } catch (error) {
+      showError('Clear Failed', `Cannot clear data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logger.error('Failed to clear data', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Export data
+   */
+  const exportData = async () => {
+    setIsLoading(true);
+    try {
+      const service = ServiceFactory.getDefaultPasswordService();
+      const passwords = await service.getAllPasswords();
+      
+      const dataStr = JSON.stringify(passwords, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `memory-safe-guard-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      showSuccess('Export Complete', `Exported ${passwords.length} passwords`);
+      logger.info('Data exported', { count: passwords.length });
+    } catch (error) {
+      showError('Export Failed', `Cannot export data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logger.error('Failed to export data', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!isOpen) {
+    return (
       <Button
         variant="outline"
         size="sm"
-        onClick={toggleVisibility}
-        className={cn(
-          "fixed bottom-4 left-4 z-50 gap-2",
-          isVisible && "bg-primary text-primary-foreground"
-        )}
+        onClick={() => setIsOpen(true)}
+        className={cn("gap-2", className)}
       >
-        {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        <span className="hidden sm:inline">DevTools</span>
-        <Badge variant="secondary" className="ml-1">
-          DEV
-        </Badge>
+        <Bug className="h-4 w-4" />
+        Dev Tools
       </Button>
+    );
+  }
 
-      {/* DevTools Panel */}
-      {isVisible && (
-        <Card className={cn(
-          "fixed bottom-16 left-4 w-96 max-h-[70vh] overflow-auto z-40 shadow-lg",
-          className
-        )}>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Code className="h-5 w-5" />
-              Development Tools
-            </CardTitle>
-            <CardDescription>
-              Debug utilities và system monitoring
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="config" className="text-xs">
-                  <Settings className="h-3 w-3 mr-1" />
-                  Config
-                </TabsTrigger>
-                <TabsTrigger value="data" className="text-xs">
-                  <Database className="h-3 w-3 mr-1" />
-                  Data
-                </TabsTrigger>
-                <TabsTrigger value="performance" className="text-xs">
-                  <Zap className="h-3 w-3 mr-1" />
-                  Perf
-                </TabsTrigger>
-              </TabsList>
-              
-              {/* Configuration Tab */}
-              <TabsContent value="config" className="space-y-3 mt-4">
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Configuration Health</h4>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>Health Score:</div>
-                    <Badge variant={healthScore > 80 ? 'default' : 'destructive'}>
-                      {healthScore}/100
-                    </Badge>
-                    
-                    <div>Environment:</div>
-                    <Badge variant="outline">
-                      {configStatus?.environment || 'unknown'}
-                    </Badge>
-                    
-                    <div>API Sync:</div>
-                    <Badge variant={configStatus?.apiSyncEnabled ? 'default' : 'secondary'}>
-                      {configStatus?.apiSyncEnabled ? 'On' : 'Off'}
-                    </Badge>
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Quick Actions</h4>
-                  <div className="space-y-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={handleExportConfig}
-                      className="w-full text-xs"
-                    >
-                      Export Config Debug
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-              
-              {/* Data Tab */}
-              <TabsContent value="data" className="space-y-3 mt-4">
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Database Status</h4>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>Total Passwords:</div>
-                    <Badge variant="outline">{stats.total}</Badge>
-                    
-                    <div>Loading:</div>
-                    <Badge variant={loading ? 'destructive' : 'default'}>
-                      {loading ? 'Yes' : 'No'}
-                    </Badge>
-                    
-                    <div>Error:</div>
-                    <Badge variant={error ? 'destructive' : 'default'}>
-                      {error ? 'Yes' : 'No'}
-                    </Badge>
-                  </div>
-                </div>
-                
-                {error && (
-                  <div className="p-2 bg-red-50 border border-red-200 rounded text-xs">
-                    <strong>Error:</strong> {error}
-                  </div>
-                )}
-                
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Data Actions</h4>
-                  <Button 
-                    size="sm" 
-                    variant="destructive" 
-                    onClick={handleClearData}
-                    className="w-full text-xs"
-                  >
-                    Clear All Data
-                  </Button>
-                </div>
-              </TabsContent>
-              
-              {/* Performance Tab */}
-              <TabsContent value="performance" className="space-y-3 mt-4">
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Performance Metrics</h4>
-                  <div className="text-xs text-muted-foreground">
-                    Performance monitoring sẽ được implement trong tương lai
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Memory Usage</h4>
-                  <div className="text-xs text-muted-foreground">
-                    Memory tracking sẽ được implement trong tương lai
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      )}
-    </>
+  return (
+    <Card className={cn("w-full max-w-2xl", className)}>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bug className="h-5 w-5" />
+            Development Tools
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsOpen(false)}
+          >
+            ✕
+          </Button>
+        </CardTitle>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        {/* Service Information */}
+        <div>
+          <h3 className="text-sm font-medium mb-3">Service Information</h3>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={getServiceInfo}
+              disabled={isLoading}
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Get Service Info
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={testConnection}
+              disabled={isLoading}
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
+              Test Connection
+            </Button>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Database Switching */}
+        <div>
+          <h3 className="text-sm font-medium mb-3">Database Switching</h3>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={switchToNeonDB}
+              disabled={isLoading}
+            >
+              <Cloud className="h-4 w-4 mr-2" />
+              Switch to Neon DB
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={switchToIndexedDB}
+              disabled={isLoading}
+            >
+              <HardDrive className="h-4 w-4 mr-2" />
+              Switch to IndexedDB
+            </Button>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Data Operations */}
+        <div>
+          <h3 className="text-sm font-medium mb-3">Data Operations</h3>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportData}
+              disabled={isLoading}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export Data
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={clearAllData}
+              disabled={isLoading}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Clear All Data
+            </Button>
+          </div>
+        </div>
+
+        {/* Environment Info */}
+        <div>
+          <h3 className="text-sm font-medium mb-3">Environment</h3>
+          <div className="flex gap-2 flex-wrap">
+            <Badge variant="secondary">
+              {import.meta.env.MODE}
+            </Badge>
+            <Badge variant={import.meta.env.VITE_USE_NEONDB === 'true' ? 'default' : 'outline'}>
+              Neon DB: {import.meta.env.VITE_USE_NEONDB === 'true' ? 'Enabled' : 'Disabled'}
+            </Badge>
+            <Badge variant={import.meta.env.VITE_ENABLE_API_SYNC === 'true' ? 'default' : 'outline'}>
+              API Sync: {import.meta.env.VITE_ENABLE_API_SYNC === 'true' ? 'Enabled' : 'Disabled'}
+            </Badge>
+          </div>
+        </div>
+
+        {isLoading && (
+          <div className="text-center py-4">
+            <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">Processing...</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };

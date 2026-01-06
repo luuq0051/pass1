@@ -19,12 +19,20 @@ export const PasswordCard = ({ entry, onEdit, onDelete }: PasswordCardProps) => 
   const { copyToClipboard } = useSecureClipboard();
 
   const handleCopyUsername = async () => {
-    await copyToClipboard(entry.username, "Tên đăng nhập");
+    await copyToClipboard(entry.username, {
+      label: "Tên đăng nhập",
+      source: "password-card",
+      sensitive: false
+    });
     logger.debug('Username copied', { service: entry.service });
   };
 
   const handleCopyPassword = async () => {
-    await copyToClipboard(entry.password, "Mật khẩu");
+    await copyToClipboard(entry.password, {
+      label: "Mật khẩu", 
+      source: "password-card",
+      sensitive: true
+    });
     logger.debug('Password copied', { service: entry.service });
   };
 

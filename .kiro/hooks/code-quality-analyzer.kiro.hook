@@ -4,19 +4,12 @@
   "description": "Lắng nghe các tập tin mã nguồn trong kho lưu trữ. Khi phát hiện thay đổi, phân tích đoạn mã đã chỉnh sửa để tìm cải tiến tiềm năng, bao gồm mùi mã, mẫu thiết kế và phương pháp thực hành tốt nhất. Đưa ra đề xuất để cải thiện chất lượng mã nhưng vẫn duy trì chức năng hiện có. Tập trung vào khả năng đọc, khả năng bảo trì và tối ưu hóa hiệu suất.",
   "version": "1",
   "when": {
-    "type": "fileEdited",
-    "patterns": [
-      "*.ts",
-      "*.tsx",
-      "*.js",
-      "*.jsx",
-      "*.css",
-      "*.json",
-      "*.md"
-    ]
+    "type": "userTriggered"
   },
   "then": {
     "type": "askAgent",
     "prompt": "Phân tích các thay đổi mã nguồn vừa được thực hiện và đưa ra đề xuất cải tiến chất lượng mã. Tập trung vào:\n\n1. **Phát hiện mùi mã (Code Smells)**:\n   - Hàm quá dài hoặc phức tạp\n   - Trùng lặp mã nguồn\n   - Tên biến/hàm không rõ ràng\n   - Logic phức tạp cần tách riêng\n\n2. **Mẫu thiết kế và kiến trúc**:\n   - Áp dụng design patterns phù hợp\n   - Tách biệt concerns\n   - Dependency injection\n   - Single responsibility principle\n\n3. **Phương pháp thực hành tốt nhất**:\n   - TypeScript best practices\n   - React hooks optimization\n   - Performance improvements\n   - Error handling\n   - Code documentation\n\n4. **Khả năng đọc và bảo trì**:\n   - Cải thiện tên biến/hàm\n   - Thêm comments cần thiết\n   - Tối ưu cấu trúc code\n   - Consistent coding style\n\n5. **Cập nhật liên quan**:\n   - Kiểm tra và cập nhật các file liên quan\n   - Đồng bộ types và interfaces\n   - Cập nhật tests nếu cần\n   - Đảm bảo tính nhất quán trong toàn bộ codebase\n\nĐưa ra các đề xuất cụ thể với ví dụ code và giải thích lý do tại sao cần cải tiến. Ưu tiên các cải tiến có tác động tích cực lớn nhất đến chất lượng và hiệu suất của ứng dụng."
-  }
+  },
+  "workspaceFolderName": "pass",
+  "shortName": "code-quality-analyzer"
 }

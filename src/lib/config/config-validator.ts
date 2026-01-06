@@ -28,13 +28,13 @@ const apiConfigSchema = z.object({
   ENABLE_SYNC: z.boolean(),
   TIMEOUT: z.number().min(1000, 'Timeout must be at least 1000ms').max(30000, 'Timeout cannot exceed 30000ms'),
 }).refine((config) => {
-  // Validate production URL format
-  if (config.ENABLE_SYNC && !config.BASE_URL.startsWith('https://')) {
+  // Validate production URL format - chỉ yêu cầu HTTPS trong production
+  if (config.ENABLE_SYNC && !config.BASE_URL.startsWith('https://') && !config.BASE_URL.startsWith('http://localhost')) {
     return false;
   }
   return true;
 }, {
-  message: 'Production API must use HTTPS when sync is enabled',
+  message: 'Production API must use HTTPS when sync is enabled (localhost HTTP is allowed)',
   path: ['BASE_URL'],
 }).refine((config) => {
   // Validate URL format

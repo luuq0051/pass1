@@ -78,7 +78,9 @@ export class ApiUrlBuilder {
       if (ENV_ACCESS.isProduction) {
         cachedApiBaseUrl = this.buildProductionApiUrl();
       } else {
-        cachedApiBaseUrl = DEPLOYMENT_CONSTANTS.DEV_API_PATH;
+        // Development: build full URL for validation
+        const devBaseUrl = 'http://localhost:8080';
+        cachedApiBaseUrl = `${devBaseUrl}${DEPLOYMENT_CONSTANTS.DEV_API_PATH}`;
       }
 
       logger.info('API Base URL built', { 

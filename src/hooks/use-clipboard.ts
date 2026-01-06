@@ -36,163 +36,177 @@ const DEFAULT_SECURITY_POLICY: ClipboardSecurityPolicy = {
 };
 
 /**
- * Enhanced clipboard hook với security features
+ * Enhanced clipboard hook với clean architecture
  */
 export const useClipboard = (config: ClipboardConfig = {}): UseClipboardReturn => {
   const {
     showToast = true,
     toastDuration = 2000,
-    secureMode = false,
-    clearTimeout = 30000, // 30 seconds
+    securityPolicy = DEFAULT_SECURITY_POLICY,
+    retryConfig = { maxRetries: 2, retryDelay: 1000 }
   } = config;
 
   const [copied, setCopied] = useState(false);
   const { showSuccess, showError } = useToastNotifications();
-
-  // Check if clipboard API is supported
-  const isSupported = typeof navigator !== 'undefined' && 'clipboard' in navigator;
+  
+  // Refs để cleanup timeouts
+  const timeoutRefs = useRef<Set<NodeJS.Timeout>>(new Set());
+  const isSupported = isClipboardSupported();
 
   /**
-   * Fallback copy method using execCommand
+   * Cleanup all timeouts khi component unmount
    */
-  const fallbackCopy = useCallback((text: string): boolean => {
-    try {
-      const textArea = document.createElement('textarea');
-      textArea.value = text;
-      textArea.style.position = 'fixed';
-      textArea.style.left = '-999999px';
-      textArea.style.top = '-999999px';
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      
-      const result = document.execCommand('copy');
-      document.body.removeChild(textArea);
-      
-      return result;
-    } catch (error) {
-      logger.error('Fallback copy failed', error as Error);
-      return false;
-    }
+  useEffect(() => {
+    return () => {
+      timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
+      timeoutRefs.current.clear();
+    };
   }, []);
 
   /**
-   * Main copy function với multiple fallbacks
+   * Helper để manage timeouts
+   */
+  const addTimeout = useCallback((callback: () => void, delay: number) => {
+    const timeout = setTimeout(() => {
+      callback();
+      timeoutRefs.current.delete(timeout);
+    }, delay);
+    
+    timeoutRefs.current.add(timeout);
+    return timeout;
+  }, []);
+
+  /**
+   * Main copy function với enhanced error handling
    */
   const copyToClipboard = useCallback(async (
     text: string,
-    label: string = 'Nội dung'
+    context: Partial<ClipboardContext> = {}
   ): Promise<ClipboardResult> => {
-    if (!text) {
-      const error = 'Không có nội dung để sao chép';
-      logger.warn('Copy attempted with empty text');
-      return { success: false, error };
+    const fullContext: ClipboardContext = {
+      label: 'Nội dung',
+      source: 'user',
+      sensitive: false,
+      timestamp: Date.now(),
+      ...context
+    };
+
+    // Validate text length
+    if (text.length > securityPolicy.maxTextLength) {
+      const error = `Nội dung quá dài (${text.length}/${securityPolicy.maxTextLength} ký tự)`;
+      logger.warn('Copy rejected - text too long', { length: text.length });
+      
+      if (showToast) {
+        showError(error);
+      }
+      
+      return { success: false };
     }
 
     try {
-      // Try modern clipboard API first
-      if (isSupported) {
-        await navigator.clipboard.writeText(text);
-        logger.debug('Text copied using Clipboard API', { label, length: text.length });
-      } else {
-        // Fallback to execCommand
-        const success = fallbackCopy(text);
-        if (!success) {
-          throw new Error('Fallback copy method failed');
-        }
-        logger.debug('Text copied using fallback method', { label, length: text.length });
-      }
-
-      // Update state
-      setCopied(true);
-
-      // Show success toast
-      if (showToast) {
-        showSuccess(`${label} đã được sao chép vào clipboard`, {
-          title: "Đã sao chép",
-          duration: toastDuration,
-        });
-      }
-
-      // Reset copied state after duration
-      setTimeout(() => setCopied(false), toastDuration);
-
-      // Secure mode: Clear clipboard after timeout
-      if (secureMode) {
-        setTimeout(async () => {
-          try {
-            await clearClipboard();
-            logger.debug('Clipboard cleared for security', { label });
-          } catch (error) {
-            logger.warn('Failed to clear clipboard', error as Error);
-          }
-        }, clearTimeout);
-      }
-
-      return { success: true };
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Không thể sao chép';
+      const result = await copyTextToClipboard(text, fullContext);
       
-      logger.error('Copy to clipboard failed', error as Error, {
-        label,
-        textLength: text.length,
-        isSupported,
-      });
-
-      // Show error toast
-      if (showToast) {
-        showError(errorMessage, {
-          title: "Lỗi sao chép",
-          duration: toastDuration,
-        });
+      if (result.success) {
+        setCopied(true);
+        
+        // Show success toast
+        if (showToast) {
+          showSuccess(`${fullContext.label} đã được sao chép`, {
+            duration: toastDuration,
+          });
+        }
+        
+        // Reset copied state
+        addTimeout(() => setCopied(false), toastDuration);
+        
+        // Auto cleanup for sensitive data
+        if (fullContext.sensitive && securityPolicy.autoCleanup) {
+          addTimeout(async () => {
+            try {
+              await clearClipboardContent();
+              logger.debug('Auto-cleared sensitive clipboard content', fullContext);
+            } catch (error) {
+              logger.warn('Failed to auto-clear clipboard', error as Error);
+            }
+          }, securityPolicy.cleanupDelay);
+        }
+      } else if (result.error && showToast) {
+        showError(result.error.userMessage);
       }
-
-      return { success: false, error: errorMessage };
+      
+      return result;
+      
+    } catch (error) {
+      logger.error('Clipboard operation failed', error as Error, fullContext);
+      
+      if (showToast) {
+        showError('Không thể sao chép vào clipboard');
+      }
+      
+      return { success: false };
     }
-  }, [isSupported, fallbackCopy, showToast, showSuccess, showError, toastDuration, secureMode, clearTimeout]);
+  }, [
+    securityPolicy, 
+    showToast, 
+    toastDuration, 
+    showSuccess, 
+    showError, 
+    addTimeout
+  ]);
 
   /**
-   * Clear clipboard content
+   * Clear clipboard với error handling
    */
   const clearClipboard = useCallback(async (): Promise<ClipboardResult> => {
     try {
-      if (isSupported) {
-        await navigator.clipboard.writeText('');
-        logger.debug('Clipboard cleared');
-        return { success: true };
-      } else {
-        // Fallback: copy empty string
-        const success = fallbackCopy('');
-        if (success) {
-          logger.debug('Clipboard cleared using fallback');
-          return { success: true };
-        } else {
-          throw new Error('Fallback clear method failed');
-        }
+      const result = await clearClipboardContent();
+      
+      if (result.success) {
+        logger.debug('Clipboard cleared successfully');
+      } else if (result.error && showToast) {
+        showError(result.error.userMessage);
       }
+      
+      return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Không thể xóa clipboard';
       logger.error('Clear clipboard failed', error as Error);
-      return { success: false, error: errorMessage };
+      
+      if (showToast) {
+        showError('Không thể xóa clipboard');
+      }
+      
+      return { success: false };
     }
-  }, [isSupported, fallbackCopy]);
+  }, [showToast, showError]);
+
+  /**
+   * Cleanup function
+   */
+  const cleanup = useCallback(() => {
+    timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
+    timeoutRefs.current.clear();
+    setCopied(false);
+  }, []);
 
   return {
     copied,
+    isSupported,
     copyToClipboard,
     clearClipboard,
-    isSupported,
+    cleanup,
   };
 };
 
 /**
- * Specialized hook cho password copying với security
+ * Specialized hook cho password copying với enhanced security
  */
 export const useSecureClipboard = () => {
   return useClipboard({
-    secureMode: true,
-    clearTimeout: 30000, // Clear after 30 seconds
+    securityPolicy: {
+      autoCleanup: true,
+      cleanupDelay: 30000, // 30 seconds
+      maxTextLength: 1000, // Passwords shouldn't be too long
+    },
     showToast: true,
   });
 };

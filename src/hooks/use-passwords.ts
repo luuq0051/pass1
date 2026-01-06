@@ -58,13 +58,18 @@ export const usePasswords = (config: UsePasswordsConfig = {}): UsePasswordsRetur
   const { handleAsyncError } = useErrorHandler();
   const { loading, error, executeOperation } = useLoadingState();
 
-  // Khởi tạo service với factory pattern và memoization
+  /**
+   * Khởi tạo service với factory pattern và memoization
+   * Updated: Tự động sử dụng NeonDB nếu có DATABASE_URL
+   */
   const passwordService = useMemo(() => {
     logger.debug('Initializing PasswordService via Factory', { 
       enableApiSync,
       apiBaseUrl: configurationService.getApiBaseUrl(),
       isProduction: configurationService.isProduction()
     });
+    
+    // Sử dụng NeonDB service nếu có DATABASE_URL
     return ServiceFactory.getDefaultPasswordService();
   }, [enableApiSync]);
 

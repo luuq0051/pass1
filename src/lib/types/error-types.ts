@@ -4,6 +4,83 @@
  */
 
 /**
+ * Custom Application Error class
+ */
+export class AppError extends Error {
+  public readonly type: ErrorType;
+  public readonly severity: ErrorSeverity;
+  public readonly context?: ErrorContext;
+  public readonly userMessage: string;
+  public readonly timestamp: Date;
+
+  constructor(
+    message: string,
+    type: ErrorType = ErrorType.UNKNOWN,
+    severity: ErrorSeverity = ErrorSeverity.MEDIUM,
+    userMessage?: string,
+    context?: ErrorContext
+  ) {
+    super(message);
+    this.name = 'AppError';
+    this.type = type;
+    this.severity = severity;
+    this.userMessage = userMessage || message;
+    this.context = context;
+    this.timestamp = new Date();
+
+    // Maintain proper stack trace for where our error was thrown (only available on V8)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, AppError);
+    }
+  }
+
+  /**
+   * Create a validation error
+   */
+  static validation(message: string, userMessage?: string, context?: ErrorContext): AppError {
+    return new AppError(message, ErrorType.VALIDATION, ErrorSeverity.MEDIUM, userMessage, context);
+  }
+
+  /**
+   * Create a database error
+   */
+  static database(message: string, userMessage?: string, context?: ErrorContext): AppError {
+    return new AppError(message, ErrorType.DATABASE, ErrorSeverity.HIGH, userMessage, context);
+  }
+
+  /**
+   * Create a network error
+   */
+  static network(message: string, userMessage?: string, context?: ErrorContext): AppError {
+    return new AppError(message, ErrorType.NETWORK, ErrorSeverity.MEDIUM, userMessage, context);
+  }
+
+  /**
+   * Create an authentication error
+   */
+  static authentication(message: string, userMessage?: string, context?: ErrorContext): AppError {
+    return new AppError(message, ErrorType.AUTHENTICATION, ErrorSeverity.HIGH, userMessage, context);
+  }
+
+  /**
+   * Convert to JSON for logging/reporting
+   */
+  toJSON(): ErrorReport {
+    return {
+      id: `${this.type}-${Date.now()}`,
+      type: this.type,
+      severity: this.severity,
+      message: this.message,
+      userMessage: this.userMessage,
+      stack: this.stack,
+      context: this.context || {},
+      timestamp: this.timestamp,
+      resolved: false
+    };
+  }
+}
+
+/**
  * Standard error types cho application
  */
 export enum ErrorType {
@@ -12,6 +89,7 @@ export enum ErrorType {
   NETWORK = 'NETWORK',
   AUTHENTICATION = 'AUTHENTICATION',
   PERMISSION = 'PERMISSION',
+  CLIPBOARD = 'CLIPBOARD',
   UNKNOWN = 'UNKNOWN'
 }
 

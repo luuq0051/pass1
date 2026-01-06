@@ -5,15 +5,15 @@ import { PasswordCard } from "@/components/PasswordCard";
 import { PasswordForm } from "@/components/PasswordForm";
 import { SearchBar } from "@/components/SearchBar";
 import { ThemeToggle } from "@/components/ThemeToggle";
-// Debug component removed
+import { DatabaseStatus } from "@/components/DatabaseStatus";
 import { HeroSection } from "@/components/HeroSection";
 import { StatsSection, type StatsData } from "@/components/StatsSection";
 import { LoadingState, ErrorState, EmptyState } from "@/components/StateComponents";
 import { Footer } from "@/components/Footer";
 import { useToastNotifications } from "@/hooks/use-toast-notifications";
-import { usePasswords } from "@/hooks/use-passwords"; // Updated import
+import { usePasswords } from "@/hooks/use-passwords";
 import { useFormState } from "@/hooks/use-form-state";
-import { PasswordEntry, PasswordInsert } from "@/lib/types/models"; // Updated import
+import { PasswordEntry, PasswordInsert } from "@/lib/types/models";
 import { TIMING } from "@/lib/constants/app-constants";
 import { DOMAIN_CONFIG, API_CONFIG } from "@/lib/config/app-config";
 
@@ -176,7 +176,8 @@ const Index = () => {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {/* Debug button removed */}
+              {/* Database Status - hiển thị trạng thái kết nối */}
+              <DatabaseStatus className="hidden md:flex" />
               <ThemeToggle />
               <Button
                 onClick={openAddForm}

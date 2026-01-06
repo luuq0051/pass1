@@ -51,6 +51,7 @@ export class AppError extends Error {
       [ErrorType.NETWORK]: 'Có lỗi kết nối. Vui lòng kiểm tra internet và thử lại.',
       [ErrorType.AUTHENTICATION]: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
       [ErrorType.PERMISSION]: 'Bạn không có quyền thực hiện thao tác này.',
+      [ErrorType.CLIPBOARD]: 'Không thể truy cập clipboard. Vui lòng thử lại.',
       [ErrorType.UNKNOWN]: 'Có lỗi xảy ra. Vui lòng thử lại sau.'
     };
     return messages[type];
@@ -63,6 +64,7 @@ export class AppError extends Error {
       [ErrorType.NETWORK]: ErrorRecoveryStrategy.RETRY,
       [ErrorType.AUTHENTICATION]: ErrorRecoveryStrategy.REDIRECT,
       [ErrorType.PERMISSION]: ErrorRecoveryStrategy.FALLBACK,
+      [ErrorType.CLIPBOARD]: ErrorRecoveryStrategy.RETRY,
       [ErrorType.UNKNOWN]: ErrorRecoveryStrategy.RETRY
     };
     return strategies[type];
