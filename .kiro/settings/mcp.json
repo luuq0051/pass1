@@ -15,7 +15,10 @@
         "playwright_fill",
         "playwright_get_visible_text",
         "playwright_get_visible_html",
-        "playwright_close"
+        "playwright_close",
+        "get_page_title",
+        "take_screenshot",
+        "create_browser_session"
       ]
     },
     "supabase": {
