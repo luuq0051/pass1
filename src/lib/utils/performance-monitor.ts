@@ -43,6 +43,11 @@ class PerformanceMonitor {
   startTiming(name: string, metadata?: Record<string, any>): string {
     if (!this.isEnabled) return name;
 
+    // Handle concurrency by appending a timestamp or random ID if needed
+    // But for simple start/end usage, we might just want to let the user manage names
+    // OR we can return a unique ID to be used for ending.
+
+    // For measureAsync/Sync wrapper, we can make it unique internally
     const metric: PerformanceMetric = {
       name,
       startTime: performance.now(),
@@ -61,7 +66,7 @@ class PerformanceMonitor {
 
     const metric = this.metrics.get(name);
     if (!metric) {
-      logger.warn(`Performance metric '${name}' not found`);
+      // logger.warn(`Performance metric '${name}' not found`); // Reduced noise for concurrency
       return null;
     }
 
@@ -78,10 +83,10 @@ class PerformanceMonitor {
   }
 
   /**
-   * Measure async operation
+   * Measure async operation with concurrency support
    */
   async measureAsync<T>(
-    name: string,
+    baseName: string,
     operation: () => Promise<T>,
     metadata?: Record<string, any>
   ): Promise<T> {
@@ -89,22 +94,25 @@ class PerformanceMonitor {
       return await operation();
     }
 
-    this.startTiming(name, metadata);
+    // Create a unique name to handle concurrent calls
+    const uniqueName = `${baseName}_${Math.random().toString(36).substr(2, 9)}`;
+
+    this.startTiming(uniqueName, { ...metadata, originalName: baseName });
     try {
       const result = await operation();
-      this.endTiming(name);
+      this.endTiming(uniqueName);
       return result;
     } catch (error) {
-      this.endTiming(name);
+      this.endTiming(uniqueName);
       throw error;
     }
   }
 
   /**
-   * Measure sync operation
+   * Measure sync operation with concurrency support
    */
   measureSync<T>(
-    name: string,
+    baseName: string,
     operation: () => T,
     metadata?: Record<string, any>
   ): T {
@@ -112,13 +120,16 @@ class PerformanceMonitor {
       return operation();
     }
 
-    this.startTiming(name, metadata);
+    // Create a unique name to handle concurrent calls
+    const uniqueName = `${baseName}_${Math.random().toString(36).substr(2, 9)}`;
+
+    this.startTiming(uniqueName, { ...metadata, originalName: baseName });
     try {
       const result = operation();
-      this.endTiming(name);
+      this.endTiming(uniqueName);
       return result;
     } catch (error) {
-      this.endTiming(name);
+      this.endTiming(uniqueName);
       throw error;
     }
   }

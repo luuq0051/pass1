@@ -36,6 +36,23 @@ async function migrate() {
     `);
         console.log('✅ Table "passwords" checked/created.');
 
+        // 1.1 Add missing columns if they don't exist (Schema Migration)
+        const columnsToAdd = [
+            { name: 'url', type: 'VARCHAR(500)' },
+            { name: 'notes', type: 'TEXT' },
+            { name: 'folder', type: 'VARCHAR(255)' },
+            { name: 'tags', type: 'TEXT[]' },
+            { name: 'expires_at', type: 'TIMESTAMP WITH TIME ZONE' }
+        ];
+
+        for (const col of columnsToAdd) {
+            await client.query(`
+                ALTER TABLE passwords 
+                ADD COLUMN IF NOT EXISTS ${col.name} ${col.type};
+            `);
+            console.log(`✅ Column "${col.name}" checked/added.`);
+        }
+
         // 2. Create Indexes
         await client.query(`
       CREATE INDEX IF NOT EXISTS idx_passwords_service ON passwords(service);
